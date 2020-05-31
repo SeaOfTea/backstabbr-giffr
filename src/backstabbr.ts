@@ -1,9 +1,39 @@
 import * as puppeteer from 'puppeteer';
 import * as GIFEncode from 'gifencoder';
-import { createCanvas, loadImage } from 'canvas';
+import { createCanvas, loadImage, Image } from 'canvas';
 import * as fs from 'fs';
+import * as meow from 'meow';
 
-const url = (year: number, season: string) => `https://www.backstabbr.com/game/The-Great-Sausage-War/6412431889268736/${year}/${season}`;
+const cli = meow(`
+  Usage
+  $ npm start <input>
+
+  Options
+  --delay, -d
+
+  Examples
+  $ npm start
+`, {
+  flags: {
+    delay: {
+      type: 'number',
+      alias: 'd',
+      default: 2000
+    },
+    quality: {
+      type: 'number',
+      alias: 'q',
+      default: 100
+    }
+  }
+});
+
+const delay : number = cli.flags.delay;
+const quality : number = cli.flags.quality;
+const game_url : string = cli.input[0] || 'https://www.backstabbr.com/game/The-Great-Sausage-War/6412431889268736';
+
+const url = (year: number, season: string) => `${game_url}/${year}/${season}`;
+
 const start_year = 1901;
 const end_year = 1914;
 const seasons = ['spring', 'fall', 'winter'];
@@ -46,7 +76,7 @@ const years = new Array(end_year - start_year + 1)
 
   await browser.close();
 
-  let initialFrame = await loadImage('screenshots/1901-spring.png');
+  let initialFrame : Image = await loadImage('screenshots/1901-spring.png');
 
   const encoder = new GIFEncode(initialFrame.width, initialFrame.height);
 
@@ -54,13 +84,13 @@ const years = new Array(end_year - start_year + 1)
 
   encoder.start();
   encoder.setRepeat(0);
-  encoder.setDelay(2000);
-  encoder.setQuality(100);
+  encoder.setDelay(delay);
+  encoder.setQuality(quality);
 
   const canvas = createCanvas(initialFrame.width, initialFrame.height);
   const ctx = canvas.getContext('2d');
 
-  let imgFrame;
+  let imgFrame : Image;
 
   await Promise.all(years.map(async year => {
     return await Promise.all(year.map(async ([year, season]) => {
