@@ -1,8 +1,9 @@
-import * as puppeteer from 'puppeteer';
-import * as GIFEncode from 'gifencoder';
+import { launch, ElementHandle } from 'puppeteer';
+import GIFEncode from 'gifencoder-forced-color';
 import { createCanvas, loadImage, Image } from 'canvas';
 import * as fs from 'fs';
-import * as meow from 'meow';
+import meow from 'meow';
+import evaluateColorRegions from './evaluateColorRegions';
 
 const cli = meow(`
   Usage
@@ -18,12 +19,12 @@ const cli = meow(`
     delay: {
       type: 'number',
       alias: 'd',
-      default: 2000
+      default: 10
     },
     quality: {
       type: 'number',
       alias: 'q',
-      default: 100
+      default: 10
     }
   }
 });
@@ -31,6 +32,7 @@ const cli = meow(`
 const delay : number = cli.flags.delay;
 const quality : number = cli.flags.quality;
 const game_url : string = cli.input[0] || 'https://www.backstabbr.com/game/The-Great-Sausage-War/6412431889268736';
+const [, game_name] = game_url.match(/\/game\/(.*)\//);
 
 const url = (year: number, season: string) => `${game_url}/${year}/${season}`;
 
@@ -48,8 +50,10 @@ const years = new Array(end_year - start_year + 1)
     return year;
   });
 
+
+
 (async () => {
-  const browser = await puppeteer.launch({ headless: true });
+  const browser = await launch({ headless: true });
 
   await Promise.all(years.map(async year => {
     return await Promise.all(year.map(async ([year, season]) => {
@@ -57,17 +61,19 @@ const years = new Array(end_year - start_year + 1)
         const page = await browser.newPage();
         await page.goto(url(year, season));
 
-          await page.evaluate(() => {
-            const navbar = document.querySelector('.navbar');
-            navbar?.remove();
-          });
+        await evaluateColorRegions(page);
 
-          let element : puppeteer.ElementHandle<Element>;
-          while (!element) {
-            element = await page.$('#map_container');
-            await element?.screenshot({ path: `screenshots/${year}-${season}.png` }) ?? console.log('could not find element', year, season, "retrying");
-          }
-          await page.close();
+        await page.evaluate(() => {
+          const navbar = document.querySelector('.navbar');
+          navbar?.remove();
+        });
+
+        let element : ElementHandle<Element>;
+        while (!element) {
+          element = await page.$('#map_container');
+          await element?.screenshot({ path: `screenshots/${year}-${season}.png` }) ?? console.log('could not find element', year, season, "retrying");
+        }
+        await page.close();
       } catch (e) {
         console.log(e);
       }
@@ -80,7 +86,7 @@ const years = new Array(end_year - start_year + 1)
 
   const encoder = new GIFEncode(initialFrame.width, initialFrame.height);
 
-  encoder.createReadStream().pipe(fs.createWriteStream('output/animated.gif'));
+  encoder.createReadStream().pipe(fs.createWriteStream(`output/${game_name}.gif`));
 
   encoder.start();
   encoder.setRepeat(0);
@@ -103,3 +109,4 @@ const years = new Array(end_year - start_year + 1)
 
   encoder.finish();
 })();
+
